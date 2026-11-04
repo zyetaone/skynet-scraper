@@ -1,4 +1,4 @@
-"""botasaurus-mcp: free web search + page scraping as an MCP server.
+"""SkyNet Scraper: free web search + page scraping as an MCP server.
 
 Speaks the Model Context Protocol over stdio (newline-delimited JSON-RPC), so any
 MCP client can use it: Claude Desktop, Cursor, Codex, OpenCode, VS Code, Cline,
@@ -16,7 +16,7 @@ import sys
 from typing import Any
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"
 
 PROTOCOL_VERSION = "2024-11-05"
 
@@ -437,9 +437,13 @@ def main(argv: list[str] | None = None) -> int:
         return _selftest(argv)
     if "--help" in argv or "-h" in argv:
         print(
-            "botasaurus-mcp %s\n\n"
+            "skynet %s\n\n"
             "MCP server over stdio: free web search + page scraping.\n\n"
-            "Usage: botasaurus-mcp [--selftest [query]] [--version]\n\n"
+            "Usage: skynet [mcp]            MCP server on stdio\n"
+            "       skynet search <query>   \n"
+            "       skynet scrape <url>     \n"
+            "       skynet install          register in your agent apps\n"
+            "       skynet doctor           check the install\n\n"
             "Environment:\n"
             "  BOTASAURUS_MCP_ENGINE        auto|duckduckgo|duckduckgo_lite|bing|mojeek\n"
             "  BOTASAURUS_MCP_LIMIT         default result count (10)\n"

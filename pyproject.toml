@@ -3,22 +3,31 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "botasaurus-mcp"
-version = "0.1.0"
-description = "MCP server that gives any AI coding agent free web search and page scraping, via Botasaurus' anti-detect browser."
+name = "skynet-scraper"
+version = "1.0.0"
+description = "SkyNet Scraper: free web search and page scraping as an MCP server for any AI coding agent."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
-authors = [{ name = "Binay Yadav" }]
-keywords = ["mcp", "scraping", "search", "botasaurus", "ai-agents"]
+authors = [{ name = "Zeta Labs" }]
+keywords = ["mcp", "scraping", "search", "botasaurus", "ai-agents", "skynet"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: MacOS",
+  "Operating System :: POSIX :: Linux",
+]
 dependencies = [
   "botasaurus>=4.0.97",
   "beautifulsoup4>=4.11.2",
   "lxml>=5.2.2",
 ]
 
+[project.urls]
+Homepage = "https://github.com/cosmiclab-dev/skynet-scraper"
+
 [project.scripts]
-botasaurus-mcp = "botasaurus_mcp.server:main"
+skynet = "skynet_scraper.cli:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
