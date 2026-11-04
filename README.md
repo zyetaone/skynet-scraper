@@ -37,8 +37,9 @@ Check it works:
 botasaurus-mcp --selftest "rust programming language"
 ```
 
-The **first run downloads a Chromium** (~150 MB) into the Botasaurus cache. Later
-runs are fast (a few seconds per query).
+It drives the **Chrome already installed** on the machine over CDP — no browser
+download, no chromedriver. The first call prepares a profile, so allow a few
+extra seconds; after that a query takes ~2–5 s.
 
 ## Register it
 
@@ -146,8 +147,8 @@ Tool arguments override the environment per call (`engine`, `limit`,
    ```
 3. They paste the registration snippet for their client and restart it.
 
-No secrets are involved, so the repo is safe to share. Each machine downloads
-its own Chromium on first use.
+No secrets are involved, so the repo is safe to share. Each machine uses its own
+locally installed Chrome.
 
 ## How it works
 
@@ -171,8 +172,10 @@ noise from the browser never corrupts the stream.
   parses; update the selectors in `_selectors()` when that happens.
 - **Not a crawler.** No queue, no robots.txt handling, no rate limiting beyond
   what you build on top. That's deliberate: keep the surface small.
-- **Corporate machines** may block a self-downloaded browser. If the driver
-  fails to start, that's usually why.
+- **Managed machines**: it launches the same Chrome your organisation controls.
+  A browser policy that kills Chrome for particular flags (for example
+  `--disable-extensions`) will kill this too; check the policy before blaming the
+  server.
 
 ## License
 
