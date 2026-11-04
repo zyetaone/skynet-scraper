@@ -150,6 +150,25 @@ Tool arguments override the environment per call (`engine`, `limit`,
 No secrets are involved, so the repo is safe to share. Each machine uses its own
 locally installed Chrome.
 
+## When a site serves a challenge
+
+`page` recognises bot-challenge pages (`Client Challenge`, `Just a moment...`,
+`Attention Required`, `checking your browser`, `verify you are human`,
+`cf-challenge`, `ddos-guard`) and does not pretend they are content. It then:
+
+1. **Uses your `fallback` URL if you passed one.** If it parses as JSON you get
+   `json` (or `json_text` when it exceeds `max_chars`); otherwise it is fetched
+   as a normal page. Use the site's API, for example
+   `pypi.org/pypi/<pkg>/json` or `api.github.com/repos/<org>/<repo>`.
+2. **Otherwise serves the closest Wayback snapshot**, flagged
+   `"archived": true` with a note that it may be stale. Disable with
+   `BOTASAURUS_MCP_ARCHIVE=0`.
+3. **Otherwise reports** `"challenge": "<marker>"` plus a hint, so the caller
+   knows the page was refused rather than empty.
+
+Challenges are usually IP reputation, so the durable fix is a proxy:
+`BOTASAURUS_MCP_PROXY=http://user:pass@host:port`.
+
 ## How it works
 
 ```
@@ -165,9 +184,9 @@ noise from the browser never corrupts the stream.
 - **Scraping search engines breaks their terms of service.** Use it for
   engineering work you're allowed to do; keep volume sane or you'll get
   challenged.
-- **Some sites still win.** Cloudflare's "Client Challenge" (e.g. pypi.org at
-  the time of writing) blocks even an anti-detect browser; `page` returns the
-  challenge text, not the content.
+- **Some sites still win outright.** Cloudflare's "Client Challenge" can block
+  even an anti-detect browser (pypi.org did, intermittently). `page` now
+  detects that and recovers, see below.
 - **Engines change markup.** `search` reports `attempts` per engine when nothing
   parses; update the selectors in `_selectors()` when that happens.
 - **Not a crawler.** No queue, no robots.txt handling, no rate limiting beyond

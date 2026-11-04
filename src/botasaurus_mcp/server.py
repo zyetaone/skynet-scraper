@@ -79,6 +79,13 @@ TOOLS = [
                     "maximum": 200000,
                     "description": "Truncate the result (default 12000).",
                 },
+                "fallback": {
+                    "type": "string",
+                    "description": (
+                        "Used only if the page serves a bot challenge: an alternative URL to "
+                        "fetch instead, typically the site's JSON/API endpoint."
+                    ),
+                },
             },
             "required": ["url"],
         },
@@ -110,7 +117,12 @@ def _open(url: str):
             kwargs["proxy"] = PROXY
         _driver = Driver(**kwargs)
         _driver.get("about:blank")
-    _driver.get(url)
+    try:
+        # Botasaurus can clear Cloudflare's challenge (waits for it, clicking the
+        # Turnstile checkbox with human-like motion when one appears).
+        _driver.get(url, bypass_cloudflare=True, timeout=PAGE_TIMEOUT)
+    except TypeError:  # older Driver signature
+        _driver.get(url)
     return _driver
 
 
@@ -230,13 +242,100 @@ def search(query: str, limit: int = DEFAULT_LIMIT, engine: str = DEFAULT_ENGINE)
     return {"query": query, "engine": None, "count": 0, "results": [], "attempts": attempts}
 
 
+CHALLENGE_MARKERS = (
+    "client challenge",
+    "just a moment",
+    "attention required",
+    "checking your browser",
+    "cf-challenge",
+    "ddos-guard",
+    "verify you are human",
+)
+ARCHIVE_ENABLED = os.environ.get("BOTASAURUS_MCP_ARCHIVE", "1") not in ("0", "false", "no")
+
+
+def _challenge_reason(title: str, text: str) -> str | None:
+    haystack = ((title or "") + " " + (text or "")[:1500]).lower()
+    for marker in CHALLENGE_MARKERS:
+        if marker in haystack:
+            return marker
+    return None
+
+
+def _try_json(url: str) -> tuple[Any, str | None]:
+    """Fetch a fallback and parse it as JSON; returns (payload, error)."""
+    import urllib.error
+    import urllib.request
+
+    request = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                          "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0 Safari/537.36",
+            "Accept": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=PAGE_TIMEOUT) as response:
+            body = response.read().decode("utf-8", "replace")
+        return json.loads(body), None
+    except urllib.error.HTTPError as exc:
+        return None, f"HTTP {exc.code}"
+    except Exception as exc:
+        return None, f"{type(exc).__name__}: {exc}"[:200]
+
+
 def page(url: str, format: str = "text", selector: str | None = None,
-         max_chars: int = 12000) -> dict[str, Any]:
+         max_chars: int = 12000, fallback: str | None = None) -> dict[str, Any]:
     from bs4 import BeautifulSoup
 
     html, final_url = _html(url)
     soup = BeautifulSoup(html, "lxml")
     title = _clean(soup.title.get_text(" ")) if soup.title else ""
+
+    reason = _challenge_reason(title, html)
+    archived_from = None
+
+    if reason and fallback:
+        payload, error = _try_json(fallback)
+        if payload is not None:
+            text = json.dumps(payload, ensure_ascii=False, indent=1)
+            fits = len(text) <= max_chars
+            result: dict[str, Any] = {
+                "url": url,
+                "final_url": fallback,
+                "title": title,
+                "format": "json",
+                "challenge": None,
+                "fallback_used": fallback,
+                "truncated": not fits,
+                "note": "the HTML page served a bot challenge; returned the fallback API response instead",
+            }
+            if fits:
+                result["json"] = payload
+            else:
+                result["json_text"] = text[:max_chars]
+            return result
+
+    if reason:
+        target = fallback
+        if not target and ARCHIVE_ENABLED:
+            target = f"https://web.archive.org/web/2026/{url}"
+            archived_from = url
+        if target:
+            try:
+                html, _ = _html(target)
+                final_url = target
+                soup = BeautifulSoup(html, "lxml")
+                title = _clean(soup.title.get_text(" ")) if soup.title else ""
+                reason2 = _challenge_reason(title, html)
+                if reason2:
+                    reason, archived_from = reason2, None
+                else:
+                    reason = None
+            except Exception as exc:
+                return {"url": url, "final_url": final_url, "title": title,
+                        "challenge": reason, "error": str(exc)[:200]}
 
     if selector:
         node = soup.select_one(selector)
@@ -267,7 +366,7 @@ def page(url: str, format: str = "text", selector: str | None = None,
         body = "\n".join(line.strip() for line in body.splitlines() if line.strip())
 
     truncated = len(body) > max_chars
-    return {
+    result: dict[str, Any] = {
         "url": url,
         "final_url": final_url,
         "title": title,
@@ -275,6 +374,17 @@ def page(url: str, format: str = "text", selector: str | None = None,
         "truncated": truncated,
         "text" if format != "html" else "html": body[:max_chars],
     }
+    if reason:
+        result["challenge"] = reason
+        result["hint"] = (
+            "The site served a bot challenge. Pass fallback=<the site's API or a mirror URL>, "
+            "or set BOTASAURUS_MCP_PROXY to a proxy this site does not challenge."
+        )
+    if archived_from:
+        result["archived"] = True
+        result["archived_from"] = archived_from
+        result["note"] = "the live page was challenged; served the closest Wayback snapshot (may be stale)"
+    return result
 
 
 # --------------------------------------------------------------------------- #
@@ -307,6 +417,7 @@ def _call_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
             args.get("format", "text"),
             args.get("selector"),
             int(args.get("max_chars", 12000)),
+            args.get("fallback"),
         )
     else:
         raise ValueError(f"unknown tool: {name}")
