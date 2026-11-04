@@ -173,10 +173,10 @@ def _selectors(engine: str) -> tuple[str, str, str]:
     return "div.result", "a.result__a", "a.result__snippet"
 
 
-def _search_with(url: str, engine: str, limit: int) -> list[dict[str, str]]:
+def _parse_results(html: str, engine: str, limit: int) -> list[dict[str, str]]:
+    """Parse a results page. Pure: no browser, no network, so it is testable."""
     from bs4 import BeautifulSoup
 
-    html, _ = _html(url)
     soup = BeautifulSoup(html, "lxml")
     container, link_sel, snippet_sel = _selectors(engine)
 
@@ -209,6 +209,11 @@ def _search_with(url: str, engine: str, limit: int) -> list[dict[str, str]]:
         if len(results) >= limit:
             break
     return results
+
+
+def _search_with(url: str, engine: str, limit: int) -> list[dict[str, str]]:
+    html, _ = _html(url)
+    return _parse_results(html, engine, limit)
 
 
 ENGINE_URLS = {

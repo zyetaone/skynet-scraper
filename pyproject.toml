@@ -9,7 +9,7 @@ description = "SkyNet Scraper: free web search and page scraping as an MCP serve
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
-authors = [{ name = "Zeta Labs" }]
+authors = [{ name = "Binae" }]
 keywords = ["mcp", "scraping", "search", "botasaurus", "ai-agents", "skynet"]
 classifiers = [
   "Programming Language :: Python :: 3",
@@ -24,7 +24,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/cosmiclab-dev/skynet-scraper"
+Homepage = "https://github.com/zyetaone/skynet-scraper"
+Repository = "https://github.com/zyetaone/skynet-scraper"
+Issues = "https://github.com/zyetaone/skynet-scraper/issues"
+Changelog = "https://github.com/zyetaone/skynet-scraper/blob/main/CHANGELOG.md"
 
 [project.scripts]
 skynet = "skynet_scraper.cli:main"
