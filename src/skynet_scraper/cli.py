@@ -3,6 +3,7 @@
     skynet                 MCP server on stdio (what coding agents run)
     skynet search "query"  print results
     skynet scrape <url>    print a page's text
+    skynet bulk            fetch many pages from one protected host
     skynet install         register the MCP server in every agent app found
     skynet doctor          check the install
 
@@ -15,6 +16,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from typing import Any
 
 from . import server
@@ -202,6 +204,70 @@ def cli_scrape(argv: list[str]) -> int:
     return 0 if not data.get("error") else 1
 
 
+def cli_bulk(argv: list[str]) -> int:
+    """Fetch many pages from one host, with Cloudflare handled."""
+    from . import bulk
+
+    if not argv:
+        print("usage: skynet bulk --urls FILE [--out DIR] [--workers N] "
+              "[--delay A B] [--limit N]", file=sys.stderr)
+        return 2
+
+    urls: list[str] = []
+    out_dir = None
+    workers = 4
+    delay = (0.05, 0.25)
+    limit = 0
+    i = 0
+    while i < len(argv):
+        flag = argv[i]
+        if flag == "--urls" and i + 1 < len(argv):
+            with open(os.path.expanduser(argv[i + 1])) as handle:
+                urls.extend(line.strip() for line in handle if line.strip())
+            i += 2
+        elif flag == "--out" and i + 1 < len(argv):
+            out_dir = argv[i + 1]; i += 2
+        elif flag == "--workers" and i + 1 < len(argv):
+            workers = int(argv[i + 1]); i += 2
+        elif flag == "--limit" and i + 1 < len(argv):
+            limit = int(argv[i + 1]); i += 2
+        elif flag == "--delay" and i + 2 < len(argv):
+            delay = (float(argv[i + 1]), float(argv[i + 2])); i += 3
+        elif flag.startswith("-"):
+            print(f"unknown flag: {flag}", file=sys.stderr); return 2
+        else:
+            urls.append(flag); i += 1
+
+    if limit:
+        urls = urls[:limit]
+    if not urls:
+        print("no urls given", file=sys.stderr)
+        return 2
+
+    started = time.time()
+    seen = {"n": 0}
+
+    def progress(message: dict[str, Any]) -> None:
+        seen["n"] += 1
+        if seen["n"] % 25 == 0:
+            rate = seen["n"] / max(time.time() - started, 1e-9)
+            print(f"  {seen['n']}/{len(urls)} {rate:.1f}/s", file=sys.stderr, flush=True)
+
+    results = bulk.fetch_many(urls, workers=workers, out_dir=out_dir,
+                             delay=delay, progress=progress)
+    blocked = sum(1 for item in results if item["blocked"])
+    summary = {
+        "urls": len(urls),
+        "fetched": len(results),
+        "blocked": blocked,
+        "bytes": sum(item["bytes"] for item in results),
+        "out": out_dir,
+        "seconds": round(time.time() - started, 1),
+    }
+    print(json.dumps(summary, indent=1))
+    return 0 if len(results) == len(urls) and not blocked else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if not argv:
@@ -213,6 +279,8 @@ def main(argv: list[str] | None = None) -> int:
         return cli_search(rest)
     if command == "scrape":
         return cli_scrape(rest)
+    if command == "bulk":
+        return cli_bulk(rest)
     if command == "install":
         return install(rest)
     if command == "doctor":

@@ -26,9 +26,11 @@ skynet doctor                              # online, launches Chrome and searche
 ```
 src/skynet_scraper/
   server.py    MCP server, search/page implementations, parsing
-  cli.py       the `skynet` command: install, doctor, search, scrape
+  bulk.py      many pages from one host: warm session, same-origin fetch
+  cli.py       the `skynet` command: install, doctor, search, scrape, bulk
 tests/
   test_parsing.py   pure tests: parsing, engine selectors, challenge detection
+  test_bulk.py      pure tests: challenge detection, file naming, empty input
 ```
 
 `server.py` has no CLI concerns and `cli.py` has no protocol concerns. Keep it that way: anything reusable belongs in `server.py`.
@@ -36,7 +38,7 @@ tests/
 ## Making a change
 
 1. **Parsing and helpers** are pure functions with no browser. Add a test in `tests/test_parsing.py` first — the HTML fixtures there are small strings.
-2. **Anything that fetches** goes through `_html(url)` in `server.py`, so the browser is opened in exactly one place.
+2. **A single page** goes through `_html(url)` in `server.py`. **Many pages from one host** go through `bulk.Session`, which keeps one browser warm and skips the render. Do not open a browser anywhere else.
 3. Run `python -m unittest discover -s tests -v` before opening a pull request.
 4. If you touch the protocol loop, test it by hand:
    ```sh
@@ -62,9 +64,9 @@ Add `"mysite"` to the `engine` enum in both tool schemas (`TOOLS` in `server.py`
 ## Style
 
 - Standard library first. The only runtime dependencies are Botasaurus, BeautifulSoup and lxml.
-- Type hints on public functions; `from __future__ import annotations` at the top.
+- Type hints on public functions. Put `from __future__ import annotations` at the top.
 - No prints on stdout in `server.py` — stdout is the protocol.
-- Errors are values: return `{"error": ...}` or set `isError`, don't raise into the client.
+- Errors are values: return `{"error": ...}` or set `isError`. Do not raise into the client.
 
 ## Pull requests
 

@@ -16,7 +16,7 @@ import sys
 from typing import Any
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 PROTOCOL_VERSION = "2024-11-05"
 

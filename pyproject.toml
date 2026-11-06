@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "skynet-scraper"
-version = "1.0.0"
+version = "1.1.0"
 description = "SkyNet Scraper: free web search and page scraping as an MCP server for any AI coding agent."
 readme = "README.md"
 requires-python = ">=3.9"
