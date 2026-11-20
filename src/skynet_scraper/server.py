@@ -46,7 +46,7 @@ TOOLS = [
                 },
                 "engine": {
                     "type": "string",
-                    "enum": ["auto", "duckduckgo", "duckduckgo_lite", "bing", "mojeek"],
+                    "enum": ["auto", "brave", "google", "duckduckgo", "duckduckgo_lite", "bing", "mojeek"],
                     "description": "Search engine; 'auto' tries them in order.",
                 },
             },
@@ -178,6 +178,54 @@ def _parse_results(html: str, engine: str, limit: int) -> list[dict[str, str]]:
     from bs4 import BeautifulSoup
 
     soup = BeautifulSoup(html, "lxml")
+
+    if engine == "brave":
+        results: list[dict[str, str]] = []
+        seen: set[str] = set()
+        skip = ("search.brave.com", "cdn.search.brave.com", "imgs.search.brave.com",
+                "tiles.search.brave.com", "brave.com/search")
+        for anchor in soup.select("a[href^='http']"):
+            href = (anchor.get("href") or "").strip()
+            if any(x in href for x in skip) or href in seen:
+                continue
+            title = _clean(anchor.get_text(" ")).replace("[]", "").strip()
+            if len(title) < 8:
+                continue
+            seen.add(href)
+            results.append({"title": title, "url": href, "snippet": ""})
+            if len(results) >= limit:
+                break
+        return results
+
+    if engine == "google":
+        # Google renders result links in script, so the HTML carries no target URL.
+        # Report that plainly instead of returning an empty list.
+        if html.count("<h3") and "/url?q=" not in html:
+            raise ValueError(
+                "google hides result URLs from HTML; use engine brave or bing")
+        results: list[dict[str, str]] = []
+        seen: set[str] = set()
+        for anchor in soup.select("a"):
+            href = (anchor.get("href") or "").strip()
+            if "/url?q=" in href:
+                try:
+                    href = unquote(parse_qs(urlparse(href).query).get("q", [""])[0])
+                except Exception:
+                    continue
+            if not href.startswith("http") or "google." in href or href in seen:
+                continue
+            heading = anchor.find("h3")
+            if heading is None:
+                continue
+            title = _clean(heading.get_text(" "))
+            if not title:
+                continue
+            seen.add(href)
+            results.append({"title": title, "url": href, "snippet": ""})
+            if len(results) >= limit:
+                break
+        return results
+
     container, link_sel, snippet_sel = _selectors(engine)
 
     results: list[dict[str, str]] = []
@@ -217,6 +265,8 @@ def _search_with(url: str, engine: str, limit: int) -> list[dict[str, str]]:
 
 
 ENGINE_URLS = {
+    "brave": "https://search.brave.com/search?q={q}&source=web",
+    "google": "https://www.google.com/search?q={q}&num={n}&hl=en&pws=0",
     "duckduckgo": "https://html.duckduckgo.com/html/?q={q}",
     "duckduckgo_lite": "https://lite.duckduckgo.com/lite/?q={q}",
     "bing": "https://www.bing.com/search?q={q}&count={n}",
